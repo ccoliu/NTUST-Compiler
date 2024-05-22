@@ -1,18 +1,23 @@
 CC = gcc
 CPP = g++
-TARGET = scanner
-
+CPPSETTING = -std=c++11
+TARGET = parser
+YACC = yacc
+YACCSETTING = -y -d
 
 .PHONY: all clean
 
 all: $(TARGET)
 
-$(TARGET): lex.yy.c
-	$(CPP) -o $(TARGET) lex.yy.cpp -ll
+$(TARGET): lex.yy.cpp y.tab.cpp
+	$(CPP) $(CPPSETTING) y.tab.cpp -o $@
 
-lex.yy.c: [Compiler2024]B11001035-scanner.l
-	flex [Compiler2024]B11001035-scanner.l
-	mv lex.yy.c lex.yy.cpp
+lex.yy.cpp: [Compiler2024]B11001035-scanner.l
+	flex $^
+	mv lex.yy.c $@
+
+y.tab.cpp: parser.y
+	$(YACC) $(YACCSETTING) $^ -o $@
 
 clean:
-	rm -f lex.yy.c $(TARGET)
+	rm -f lex.yy.c $(TARGET) lex.yy.cpp y.tab.*

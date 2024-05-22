@@ -1,7 +1,6 @@
 %{
     #include <iostream>
-    #include <vector>
-    #include <map>
+    #include "y.tab.hpp"
     using namespace std;
     int num_bracket = 0;
     int num_curlybracket = 0;
@@ -15,18 +14,18 @@
     bool var_decl = false;
     bool fun_decl = false;
 
-    class Symboltable {
-        private:
-        vector<string> table;
-        map<string, int> table_map;
-        int index;
-        public:
-        Symboltable();
-        void insert(string id);
-        void lookup(string id);
-        void clean();
-    };
-    Symboltable *st;
+    // class Symboltable {
+    //     private:
+    //     vector<string> table;
+    //     map<string, int> table_map;
+    //     int index;
+    //     public:
+    //     Symboltable();
+    //     void insert(string id);
+    //     void lookup(string id);
+    //     void clean();
+    // };
+    // Symboltable *st;
 %}
 
 %x ONELINECOMMENT
@@ -49,43 +48,74 @@ white_space [ \t]+
 
 %%
 
-"var" {printf("VAR\n"); var_decl = true;}
-"val" {printf("CONST\n"); var_decl = true;}
-{declfun} {printf("FUN\n"); fun_decl = true;}
-{types} {printf("TYPE %s\n", yytext);}
-{int_type}|{real_type}|{bool_type}|\'{char_type}\' {printf("%s\n", yytext);}
-{retfun} {printf("RETURN\n");}
+"var" {var_decl = true; return VAR;}
+"val" {var_decl = true; return CONST;}
+{declfun} {fun_decl = true; return FUNC;}
+"int" {return INT;}
+"real" {return REAL;}
+"bool" {return BOOL;}
+"void" {return VOID;}
+{int_type} {
+    yylval.int_val = atoi(yytext);
+    return INT_VAL;
+}
+{retfun} {printf("RETURN\n"); return RETURN;}
 {id_type} {
-    if (var_decl) {
-        st->insert(yytext);
-        var_decl = false;
-    } else if (fun_decl) {
-        st->insert(yytext);
-        fun_decl = false;
+    // if (var_decl) {
+    //     st->insert(yytext);
+    //     var_decl = false;
+    // } else if (fun_decl) {
+    //     st->insert(yytext);
+    //     fun_decl = false;
+    // } else {
+    //     st->lookup(yytext);
+    // }
+    yylval.string_val = yytext;
+    return ID;}
+{real_type} {
+    yylval.double_val = atof(yytext);
+    return REAL_VAL;
+}
+{bool_type} {
+    if (yytext == "true") {
+        yylval.bool_val = true;
     } else {
-        st->lookup(yytext);
+        yylval.bool_val = false;
     }
-    printf("ID %s\n", yytext);}
-"(" {num_bracket++; printf("LPAREN\n");}
-")" {num_bracket--; printf("RPAREN\n");}
-"{" {num_curlybracket++; printf("LCURLY\n");}
-"}" {num_curlybracket--; printf("RCURLY\n");}
-"[" {num_squarebracket++; printf("LSQUARE\n");}
-"]" {num_squarebracket--; printf("RSQUARE\n");}
-"+" {printf("PLUS\n");}
-"-" {printf("MINUS\n");}
-"*" {printf("MULTIPLY\n");}
-"/" {printf("DIVIDE\n");}
-"==" {printf("EQUALITY\n");}
-"!=" {printf("INEQUALITY\n");}
-":" {printf("COLON\n");}
-"=" {printf("EQUALS\n");}
-";" {printf("SEMICOLON\n");}
-"," {printf("COMMA\n");}
-">" {printf("GREATER\n");}
-"<" {printf("LESS\n");}
-">=" {printf("GREATEREQUAL\n");}
-"<=" {printf("LESSEQUAL\n");}
+    return BOOL_VAL;
+}
+"(" {num_bracket++; return yytext[0];}
+")" {num_bracket--; return yytext[0];}
+"{" {num_curlybracket++; return yytext[0];}
+"}" {num_curlybracket--; return yytext[0];}
+"[" {num_squarebracket++; return yytext[0];}
+"]" {num_squarebracket--; return yytext[0];}
+"+" {return yytext[0];}
+"-" {return yytext[0];}
+"*" {return yytext[0];}
+"/" {return yytext[0];}
+"%" {return yytext[0];}
+"&" {return yytext[0];}
+"^" {return yytext[0];}
+"==" {return EQUALITY;}
+"!=" {return INEQUALITY;}
+":" {return yytext[0];}
+"=" {return yytext[0];}
+";" {return yytext[0];}
+"," {return yytext[0];}
+">" {return yytext[0];}
+"<" {return yytext[0];}
+">=" {return GREATEREQUAL;}
+"<=" {return LESSEQUAL;}
+"&&" {return AND;}
+"||" {return OR;}
+"!" {return yytext[0];}
+"print" {return PRINT;}
+"println" {return PRINTLN;}
+"if" {return IF;}
+"else" {return ELSE;}
+"for" {return FOR;}
+"while" {return WHILE;}
 {white_space} {;}
 
 "\'" {BEGIN CHAR; char_len = 0;}
@@ -103,7 +133,7 @@ white_space [ \t]+
         printf("ERROR: Char too long at Line %d\n", num_lines);
         return 1;
     }
-    printf("CHAR %c\n", char_buf); BEGIN 0;
+    BEGIN 0; return CHAR;
 }
 
 "\"" {BEGIN STRING;}
@@ -117,10 +147,9 @@ white_space [ \t]+
 <STRING>\\\? {str_buf[line_buf_index++] = '\?';}
 <STRING>[^\\"] {str_buf[line_buf_index++] = yytext[0];}
 <STRING>\" {
-    printf("%s\n", str_buf);
     memset(str_buf, 0, sizeof(str_buf));
     line_buf_index = 0;
-    BEGIN 0;
+    BEGIN 0; return STRING;
 }
 
 
@@ -166,53 +195,53 @@ int yywrap(void) {
     return 1;
 }
 
-Symboltable::Symboltable() {
-    index = 0;
-}
+// Symboltable::Symboltable() {
+//     index = 0;
+// }
 
-void Symboltable::insert(string id) {
-    if (table_map.find(id) != table_map.end()) {
-        cout << "Error: ID " << id << " already exists" << endl;
-        exit(-1);
-        return;
-    }
-    table.push_back(id);
-    table_map[id] = index;
-    index++;
-}
+// void Symboltable::insert(string id) {
+//     if (table_map.find(id) != table_map.end()) {
+//         cout << "Error: ID " << id << " already exists" << endl;
+//         exit(-1);
+//         return;
+//     }
+//     table.push_back(id);
+//     table_map[id] = index;
+//     index++;
+// }
 
-void Symboltable::lookup(string id) {
-    if (table_map.find(id) == table_map.end()) {
-        cout << "ID " << id << " not found" << endl;
-        exit(-1);
-        return;
-    }
-    cout << "ID " << id << " found at index " << table_map[id] << endl;
-}
+// void Symboltable::lookup(string id) {
+//     if (table_map.find(id) == table_map.end()) {
+//         cout << "ID " << id << " not found" << endl;
+//         exit(-1);
+//         return;
+//     }
+//     cout << "ID " << id << " found at index " << table_map[id] << endl;
+// }
 
-void start()
-{
-    st = new Symboltable();
-}
+// void start()
+// {
+//     st = new Symboltable();
+// }
 
-void clean()
-{
-    delete st;
-}
+// void clean()
+// {
+//     delete st;
+// }
 
-int main(int argc, char** argv) {
-    if (argc < 2) {
-        cout << "Usage: ./lexer <filename>" << endl;
-        return 1;
-    }
-    FILE *file = fopen(argv[1], "r");
-    if (!file) {
-        cout << "File not found" << endl;
-        return 1;
-    }
-    yyin = file;
-    start();
-    yylex();
-    clean();
-    exit(0);
-}
+// int main(int argc, char** argv) {
+//     if (argc < 2) {
+//         cout << "Usage: ./lexer <filename>" << endl;
+//         return 1;
+//     }
+//     FILE *file = fopen(argv[1], "r");
+//     if (!file) {
+//         cout << "File not found" << endl;
+//         return 1;
+//     }
+//     yyin = file;
+//     start();
+//     yylex();
+//     clean();
+//     exit(0);
+// }
