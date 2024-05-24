@@ -14,18 +14,7 @@
     bool var_decl = false;
     bool fun_decl = false;
 
-    // class Symboltable {
-    //     private:
-    //     vector<string> table;
-    //     map<string, int> table_map;
-    //     int index;
-    //     public:
-    //     Symboltable();
-    //     void insert(string id);
-    //     void lookup(string id);
-    //     void clean();
-    // };
-    // Symboltable *st;
+    
 %}
 
 %x ONELINECOMMENT
@@ -33,17 +22,12 @@
 %x CHAR
 %x STRING
 
-varconst "var"|"val"
-types "int"|"real"|"bool"|"char"|"void"
-customizedtypes "class"
-flow-control "if"|"else"|"for"|"while"|"do"|"switch"|"case"
 declfun "fun"
 retfun "ret"
 int_type -?[0-9]+
 real_type -?[0-9]+\.[0-9]+
 bool_type "true"|"false"
 id_type [a-zA-Z_][a-zA-Z0-9_]*
-char_type [a-zA-Z0-9]
 white_space [ \t]+
 
 %%
@@ -55,6 +39,8 @@ white_space [ \t]+
 "real" {return REAL;}
 "bool" {return BOOL;}
 "void" {return VOID;}
+"char" {return CHARS;}
+"string" {return STRINGS;}
 {int_type} {
     yylval.int_val = atoi(yytext);
     return INT_VAL;
@@ -70,7 +56,7 @@ white_space [ \t]+
     // } else {
     //     st->lookup(yytext);
     // }
-    yylval.string_val = yytext;
+    yylval.string_val = new string(yytext);
     return ID;}
 {real_type} {
     yylval.double_val = atof(yytext);
@@ -133,7 +119,8 @@ white_space [ \t]+
         printf("ERROR: Char too long at Line %d\n", num_lines);
         return 1;
     }
-    BEGIN 0; return CHAR;
+    yylval.char_val = char_buf;
+    BEGIN 0; return CHAR_VAL;
 }
 
 "\"" {BEGIN STRING;}
@@ -149,7 +136,8 @@ white_space [ \t]+
 <STRING>\" {
     memset(str_buf, 0, sizeof(str_buf));
     line_buf_index = 0;
-    BEGIN 0; return STRING;
+    yylval.string_val = new string(str_buf);
+    BEGIN 0; return STRING_VAL;
 }
 
 
@@ -167,33 +155,6 @@ white_space [ \t]+
 
 %%
 
-int yywrap(void) {
-    if (num_bracket < 0) {
-        cout << "ERROR: Unexpected \")\" at Line " << num_lines << endl;
-        exit(-1);
-    }
-    if (num_curlybracket < 0) {
-        cout << "ERROR: Unexpected \"}\" at Line " << num_lines << endl;
-        exit(-1);
-    }
-    if (num_squarebracket < 0) {
-        cout << "ERROR: Unexpected \"]\" at Line " << num_lines << endl;
-        exit(-1);
-    }
-    if (num_bracket != 0) {
-        printf("ERROR: Expected \")\" at Line %d\n", num_lines);
-        exit(-1);
-    }
-    if (num_curlybracket != 0) {
-        printf("ERROR: Expected \"}\" at Line %d\n", num_lines);
-        exit(-1);
-    }
-    if (num_squarebracket != 0) {
-        printf("ERROR: Expected \"]\" at Line %d\n", num_lines);
-        exit(-1);
-    }
-    return 1;
-}
 
 // Symboltable::Symboltable() {
 //     index = 0;
