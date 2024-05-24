@@ -1,6 +1,6 @@
 CC = gcc
 CPP = g++
-CPPSETTING = -std=c++11
+CPPSETTING = -std=c++11 -Wno-deprecated-register
 TARGET = parser
 YACC = yacc
 YACCSETTING = -y -d
@@ -9,12 +9,11 @@ YACCSETTING = -y -d
 
 all: $(TARGET)
 
-$(TARGET): lex.yy.cpp y.tab.cpp
-	$(CPP) $(CPPSETTING) y.tab.cpp -o $@
+$(TARGET): lex.yy.cpp y.tab.cpp symboltable.cpp
+	$(CPP) $(CPPSETTING) y.tab.cpp symboltable.cpp -o $@ -ll
 
 lex.yy.cpp: [Compiler2024]B11001035-scanner.l
-	flex $^
-	mv lex.yy.c $@
+	flex -o $@ $^
 
 y.tab.cpp: parser.y
 	$(YACC) $(YACCSETTING) $^ -o $@
