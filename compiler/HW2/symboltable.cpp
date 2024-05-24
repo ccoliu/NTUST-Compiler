@@ -177,6 +177,8 @@ string typeToString(int type) {
             return "string";
         case VOIDDECL:
             return "void";
+        case CHARDECL:
+       	    return "char";
         default:
             return "error";
     }
