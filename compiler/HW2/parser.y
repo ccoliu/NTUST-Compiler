@@ -7,7 +7,7 @@
     #include "symboltable.hpp"
     #include "lex.yy.cpp"
     using namespace std;
-    void yyerror(const char *s);
+    void yyerror(string s);
     SymboltableStack symboltable;
     vector<vector<idProperty>> fstack;
 %}
@@ -34,7 +34,7 @@
 %token <char_val> CHAR_VAL
 
 %type <idprop> const_value expression
-%type <type> var_type 
+%type <type> var_type
 
 %left OR
 %left AND
@@ -123,6 +123,24 @@ var_decl: VAR ID ':' var_type ';'
             YYABORT;
         }
     }
+    | VAR ID ':' var_type '[' expression ']' '=' expression ';' 
+    {
+        if ($6->dataType != $4) yyerror("Error: Type mismatch");
+        if ($6->dataType != INTDECL) yyerror("Error: Expected integer value");
+        if ($6->value.int_val <= 0) yyerror("Error: Array size must be greater than 0");
+        if (symboltable.insertarr(*$2,$4,$6->value.int_val) == -1)
+        {
+            yyerror("Error: Variable already declared");
+            YYABORT;
+        }
+        if ($9->dataType != ARRDECL) yyerror("Error: Expected array");
+        if ($9->value.arr_val.size() != $6->value.int_val) yyerror("Error: Array size mismatch");
+        for (int i = 0; i < $6->value.int_val; i++)
+        {
+            if ($9->value.arr_val[i].dataType != $4) yyerror("Error: Type mismatch");
+            symboltable.updatearr(*$2,i,$9->value.arr_val[i].value);
+        }
+    }
     ;
 
 
@@ -149,8 +167,17 @@ param: ID':' var_type //Ex: name: String
             yyerror("Error: Unexpected type for parameter");
             YYABORT;
         }
+        if (symboltable.insertinit(*$1,$3) == -1)
+        {
+            yyerror("Error: Variable already declared");
+            YYABORT;
+        }
+        if (!symboltable.setfuncparams(*$1,$3)) {
+            yyerror("Error: Parameter already declared");
+            YYABORT;
+        }
     }
-    | var_type 
+    | var_type //void parameter
     {
         if ($1 != VOIDDECL) {
             yyerror("Error: Expected type for parameter");
@@ -175,11 +202,108 @@ statements: statement
     ;
 
 statement: 
-    | ID '=' expression
-    | ID '[' expression ']' '=' expression
-    | PRINT expression
-    | PRINTLN expression
-    | RETURN expression
+    | var_decl
+    | const_decl 
+    | ID '=' expression ';'
+    {
+        idProperty* idtmp = symboltable.lookup(*$1);
+        if (idtmp == nullptr) {
+            yyerror("Error: Variable not declared");
+            YYABORT;
+        }
+        if (idtmp->idType != VARDECL) {
+            yyerror("Error: Expected variable");
+            YYABORT;
+        }
+        if (idtmp->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        symboltable.updatevar(*$1,$3->value);
+    }
+    | ID '[' expression ']' '=' expression ';'
+    {
+        idProperty* idtmp = symboltable.lookup(*$1);
+        if (idtmp == nullptr) {
+            yyerror("Error: Variable" + *$1 + " not declared");
+            YYABORT;
+        }
+        if (idtmp->idType != VARDECL) {
+            yyerror("Error:" + *$1 + " Expected variable");
+            YYABORT;
+        }
+        if (idtmp->dataType != ARRDECL) {
+            yyerror("Error:" + *$1 + " Expected array");
+            YYABORT;
+        }
+        if ($3->dataType != INTDECL) {
+            yyerror("Error: Expected integer index");
+            YYABORT;
+        }
+        if ($3->value.int_val < 0 || $3->value.int_val >= idtmp->value.arr_val.size()) {
+            yyerror("Error: Index out of bounds");
+            YYABORT;
+        }
+        if (idtmp->value.arr_val[$3->value.int_val].dataType != $6->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        symboltable.updatearr(*$1,$3->value.int_val,$6->value);
+    }
+    | PRINT expression ';'
+    {
+        idProperty* idtmp = symboltable.lookup($2->name);
+        if (idtmp == nullptr)
+        {
+            yyerror("Error: Variable not found");
+            YYABORT;
+        }
+        switch($2->dataType) {
+            case INTDECL:
+                cout << $2->value.int_val;
+                break;
+            case REALDECL:
+                cout << $2->value.double_val;
+                break;
+            case STRINGDECL:
+                cout << $2->value.string_val;
+                break;
+            case BOOLDECL:
+                cout << $2->value.bool_val;
+                break;
+            case CHARDECL:
+                cout << $2->value.char_val;
+                break;
+        }
+    }
+    | PRINTLN expression ';'
+    {
+        idProperty* idtmp = symboltable.lookup($2->name);
+        if (idtmp == nullptr)
+        {
+            yyerror("Error: Variable not found");
+            YYABORT;
+        }
+        switch($2->dataType) {
+            case INTDECL:
+                cout << $2->value.int_val << endl;
+                break;
+            case REALDECL:
+                cout << $2->value.double_val << endl;
+                break;
+            case STRINGDECL:
+                cout << $2->value.string_val << endl;
+                break;
+            case BOOLDECL:
+                cout << $2->value.bool_val << endl;
+                break;
+            case CHARDECL:
+                cout << $2->value.char_val << endl;
+                break;
+        }
+    }
+    | RETURN ';'
+    | RETURN expression ';'
     | conditional
     | loop
     ;
@@ -202,8 +326,6 @@ expression: ID
         $$ = idtmp;
     }
     | const_value
-    | VAR ID
-    | CONST ID
     | ID '[' expression ']'
     {
         idProperty* idtmp = symboltable.lookup(*$1);
@@ -230,31 +352,362 @@ expression: ID
         $$ = new idProperty(idtmp->value.arr_val[$3->value.int_val]);
     }
     | expression '+' expression 
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = intConst($1->value.int_val + $3->value.int_val);
+        }
+        else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
+            $$ = realConst($1->value.double_val + $3->value.double_val);
+        }
+        else if ($1->dataType == STRINGDECL && $3->dataType == STRINGDECL) {
+            $$ = stringConst(new string($1->value.string_val + $3->value.string_val));
+        }
+        else
+        {
+            yyerror("Error: No concatenation for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }
+    }
     | expression '-' expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = intConst($1->value.int_val - $3->value.int_val);
+        }
+        else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
+            $$ = realConst($1->value.double_val - $3->value.double_val);
+        }
+        else
+        {
+            yyerror("Error: No subtraction for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }
+    }
     | expression '*' expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = intConst($1->value.int_val * $3->value.int_val);
+        }
+        else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
+            $$ = realConst($1->value.double_val * $3->value.double_val);
+        }
+        else
+        {
+            yyerror("Error: No multiplication for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }
+    }
     | expression '/' expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = intConst($1->value.int_val / $3->value.int_val);
+        }
+        else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
+            $$ = realConst($1->value.double_val / $3->value.double_val);
+        }
+        else
+        {
+            yyerror("Error: No division for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }
+    }
     | expression '%' expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = intConst($1->value.int_val % $3->value.int_val);
+        }
+        else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
+            $$ = realConst(fmod($1->value.double_val,$3->value.double_val));
+        }
+        else
+        {
+            yyerror("Error: No modulo for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }
+    }
     | expression '^' expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = intConst(pow($1->value.int_val,$3->value.int_val));
+        }
+        else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
+            $$ = realConst(pow($1->value.double_val,$3->value.double_val));
+        }
+        else
+        {
+            yyerror("Error: No exponentiation for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }
+    }
     | expression '<' expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = boolConst($1->value.int_val < $3->value.int_val);
+        }
+        else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
+            $$ = boolConst($1->value.double_val < $3->value.double_val);
+        }
+        else if ($1->dataType == STRINGDECL && $3->dataType == STRINGDECL) {
+            $$ = boolConst($1->value.string_val < $3->value.string_val);
+        }
+        else if ($1->dataType == CHARDECL && $3->dataType == CHARDECL) {
+            $$ = boolConst($1->value.char_val < $3->value.char_val);
+        }
+        else
+        {
+            yyerror("Error: No comparison for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }
+    }
     | expression '>' expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = boolConst($1->value.int_val > $3->value.int_val);
+        }
+        else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
+            $$ = boolConst($1->value.double_val > $3->value.double_val);
+        }
+        else if ($1->dataType == STRINGDECL && $3->dataType == STRINGDECL) {
+            $$ = boolConst($1->value.string_val > $3->value.string_val);
+        }
+        else if ($1->dataType == CHARDECL && $3->dataType == CHARDECL) {
+            $$ = boolConst($1->value.char_val > $3->value.char_val);
+        }
+        else
+        {
+            yyerror("Error: No comparison for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }
+    }
     | expression LESSEQUAL expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = boolConst($1->value.int_val <= $3->value.int_val);
+        }
+        else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
+            $$ = boolConst($1->value.double_val <= $3->value.double_val);
+        }
+        else if ($1->dataType == STRINGDECL && $3->dataType == STRINGDECL) {
+            $$ = boolConst($1->value.string_val <= $3->value.string_val);
+        }
+        else if ($1->dataType == CHARDECL && $3->dataType == CHARDECL) {
+            $$ = boolConst($1->value.char_val <= $3->value.char_val);
+        }
+        else
+        {
+            yyerror("Error: No comparison for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }  
+    }
     | expression GREATEREQUAL expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = boolConst($1->value.int_val >= $3->value.int_val);
+        }
+        else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
+            $$ = boolConst($1->value.double_val >= $3->value.double_val);
+        }
+        else if ($1->dataType == STRINGDECL && $3->dataType == STRINGDECL) {
+            $$ = boolConst($1->value.string_val >= $3->value.string_val);
+        }
+        else if ($1->dataType == CHARDECL && $3->dataType == CHARDECL) {
+            $$ = boolConst($1->value.char_val >= $3->value.char_val);
+        }
+        else
+        {
+            yyerror("Error: No comparison for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }  
+    }
     | expression EQUALITY expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = boolConst($1->value.int_val == $3->value.int_val);
+        }
+        else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
+            $$ = boolConst($1->value.double_val == $3->value.double_val);
+        }
+        else if ($1->dataType == STRINGDECL && $3->dataType == STRINGDECL) {
+            $$ = boolConst($1->value.string_val == $3->value.string_val);
+        }
+        else if ($1->dataType == BOOLDECL && $3->dataType == BOOLDECL) {
+            $$ = boolConst($1->value.bool_val == $3->value.bool_val);
+        }
+        else if ($1->dataType == CHARDECL && $3->dataType == CHARDECL) {
+            $$ = boolConst($1->value.char_val == $3->value.char_val);
+        }
+        else
+        {
+            yyerror("Error: No comparison for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }
+    }
     | expression INEQUALITY expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = boolConst($1->value.int_val != $3->value.int_val);
+        }
+        else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
+            $$ = boolConst($1->value.double_val != $3->value.double_val);
+        }
+        else if ($1->dataType == STRINGDECL && $3->dataType == STRINGDECL) {
+            $$ = boolConst($1->value.string_val != $3->value.string_val);
+        }
+        else if ($1->dataType == BOOLDECL && $3->dataType == BOOLDECL) {
+            $$ = boolConst($1->value.bool_val != $3->value.bool_val);
+        }
+        else if ($1->dataType == CHARDECL && $3->dataType == CHARDECL) {
+            $$ = boolConst($1->value.char_val != $3->value.char_val);
+        }
+        else
+        {
+            yyerror("Error: No comparison for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }
+    }
     | expression AND expression
+    {
+        if ($1->dataType != BOOLDECL || $3->dataType != BOOLDECL) {
+            yyerror("Error: Expected boolean expression");
+            YYABORT;
+        }
+        $$ = boolConst($1->value.bool_val && $3->value.bool_val);
+    }
     | expression OR expression
+    {
+        if ($1->dataType != BOOLDECL || $3->dataType != BOOLDECL) {
+            yyerror("Error: Expected boolean expression");
+            YYABORT;
+        }
+        $$ = boolConst($1->value.bool_val || $3->value.bool_val);
+    }
     | '!' expression
+    {
+        if ($2->dataType != BOOLDECL) {
+            yyerror("Error: Expected boolean expression");
+            YYABORT;
+        }
+        $$ = boolConst(!$2->value.bool_val);
+    }
+    | expression '&' expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = intConst($1->value.int_val & $3->value.int_val);
+        }
+        else
+        {
+            yyerror("Error: No bitwise AND for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }
+    }
+    | expression '|' expression
+    {
+        if ($1->dataType != $3->dataType) {
+            yyerror("Error: Type mismatch");
+            YYABORT;
+        }
+        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+            $$ = intConst($1->value.int_val | $3->value.int_val);
+        }
+        else
+        {
+            yyerror("Error: No bitwise OR for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
+            YYABORT;
+        }
+    }
     | '-' expression %prec UMINUS
+    {
+        if ($2->dataType == INTDECL) {
+            $$ = intConst(-$2->value.int_val);
+        }
+        else if ($2->dataType == REALDECL) {
+            $$ = realConst(-$2->value.double_val);
+        }
+        else
+        {
+            yyerror("Error: No negation for type" + to_string($2->dataType));
+            YYABORT;
+        }
+    }
     | '(' expression ')'
+    {
+        $$ = $2;
+    }
+    ;
+
 
 conditional: IF '(' expression ')' '{' statements '}'
+    {
+        if ($3->dataType != BOOLDECL) {
+            yyerror("Error: Expected boolean expression");
+            YYABORT;
+        }
+    }
     | IF '(' expression ')' '{' statements '}' ELSE '{' statements '}'
+    {
+        if ($3->dataType != BOOLDECL) {
+            yyerror("Error: Expected boolean expression");
+            YYABORT;
+        }
+    
+    }
 
 loop: FOR '(' statement ';' expression ';' statement ')' '{' statements '}'
     | WHILE '(' expression ')' '{' statements '}'
 
 %%
-void yyerror(const char *s) {
+void yyerror(string s) {
     cout << s << endl;
 }
 

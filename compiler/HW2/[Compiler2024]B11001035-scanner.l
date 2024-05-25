@@ -41,23 +41,17 @@ white_space [ \t]+
 "void" {return VOID;}
 "char" {return CHARS;}
 "string" {return STRINGS;}
+"print" {return PRINT;}
+"println" {return PRINTLN;}
 {int_type} {
     yylval.int_val = atoi(yytext);
     return INT_VAL;
 }
-{retfun} {printf("RETURN\n"); return RETURN;}
+{retfun} {return RETURN;}
 {id_type} {
-    // if (var_decl) {
-    //     st->insert(yytext);
-    //     var_decl = false;
-    // } else if (fun_decl) {
-    //     st->insert(yytext);
-    //     fun_decl = false;
-    // } else {
-    //     st->lookup(yytext);
-    // }
     yylval.string_val = new string(yytext);
-    return ID;}
+    return ID;
+}
 {real_type} {
     yylval.double_val = atof(yytext);
     return REAL_VAL;
@@ -96,8 +90,6 @@ white_space [ \t]+
 "&&" {return AND;}
 "||" {return OR;}
 "!" {return yytext[0];}
-"print" {return PRINT;}
-"println" {return PRINTLN;}
 "if" {return IF;}
 "else" {return ELSE;}
 "for" {return FOR;}
@@ -123,7 +115,7 @@ white_space [ \t]+
     BEGIN 0; return CHAR_VAL;
 }
 
-"\"" {BEGIN STRING;}
+"\"" {BEGIN STRING;     memset(str_buf, 0, sizeof(str_buf));}
 <STRING>\n {printf("ERROR: Unfinished string at Line %d\n", num_lines); return 1;}
 <STRING>\' {printf("ERROR: Expected \" at Line %d\n", num_lines); return 1;}
 <STRING>\\t {str_buf[line_buf_index++] = '\t';}
@@ -134,7 +126,6 @@ white_space [ \t]+
 <STRING>\\\? {str_buf[line_buf_index++] = '\?';}
 <STRING>[^\\"] {str_buf[line_buf_index++] = yytext[0];}
 <STRING>\" {
-    memset(str_buf, 0, sizeof(str_buf));
     line_buf_index = 0;
     yylval.string_val = new string(str_buf);
     BEGIN 0; return STRING_VAL;
@@ -154,55 +145,3 @@ white_space [ \t]+
 . {printf("Unrecognized character: %c at Line %d\n", yytext[0], num_lines); return 1;}
 
 %%
-
-
-// Symboltable::Symboltable() {
-//     index = 0;
-// }
-
-// void Symboltable::insert(string id) {
-//     if (table_map.find(id) != table_map.end()) {
-//         cout << "Error: ID " << id << " already exists" << endl;
-//         exit(-1);
-//         return;
-//     }
-//     table.push_back(id);
-//     table_map[id] = index;
-//     index++;
-// }
-
-// void Symboltable::lookup(string id) {
-//     if (table_map.find(id) == table_map.end()) {
-//         cout << "ID " << id << " not found" << endl;
-//         exit(-1);
-//         return;
-//     }
-//     cout << "ID " << id << " found at index " << table_map[id] << endl;
-// }
-
-// void start()
-// {
-//     st = new Symboltable();
-// }
-
-// void clean()
-// {
-//     delete st;
-// }
-
-// int main(int argc, char** argv) {
-//     if (argc < 2) {
-//         cout << "Usage: ./lexer <filename>" << endl;
-//         return 1;
-//     }
-//     FILE *file = fopen(argv[1], "r");
-//     if (!file) {
-//         cout << "File not found" << endl;
-//         return 1;
-//     }
-//     yyin = file;
-//     start();
-//     yylex();
-//     clean();
-//     exit(0);
-// }

@@ -60,6 +60,7 @@ class Symboltable {
         idProperty* getID(string name);
         idProperty* getIDptr(string name);
         int insert(string name,int type, idValue value, int idType);
+        void update(string name, idValue value);
         int dump();
 };
 
@@ -78,6 +79,8 @@ class SymboltableStack {
     int insertfunc(string name, int type);
     int insert(string name, idProperty prop);
     bool setfuncparams(string name,int type);
+    void updatevar(string name, idValue value);
+    void updatearr(string name, int index, idValue value);
     int dump();
 };
 

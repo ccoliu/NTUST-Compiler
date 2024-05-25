@@ -35,6 +35,12 @@ int Symboltable::insert(string name, int type, idValue value, int idType) {
     return index++;
 }
 
+void Symboltable::update(string name, idValue value) {
+    if (isPresent(name)) {
+        tableMap[name].value = value;
+    }
+}
+
 int Symboltable::dump() {
     for (int i=0;i<index;i++) {
         idProperty prop = tableMap[table[i]];
@@ -114,6 +120,24 @@ int SymboltableStack::dump() {
         stacktable[i].dump();
     }
     return stacktable.size();
+}
+
+void SymboltableStack::updatevar(string name, idValue value) {
+    for (int i = index; i >= 0; i--) {
+        if (stacktable[i].isPresent(name)) {
+            stacktable[i].update(name, value);
+            return;
+        }
+    }
+}
+
+void SymboltableStack::updatearr(string name, int index, idValue value) {
+    for (int i = index; i >= 0; i--) {
+        if (stacktable[i].isPresent(name)) {
+            stacktable[i].getIDptr(name)->value.arr_val[index].value = value;
+            return;
+        }
+    }
 }
 
 idProperty* intConst(int val) {
