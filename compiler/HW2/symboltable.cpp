@@ -35,6 +35,19 @@ int Symboltable::insert(string name, int type, idValue value, int idType) {
     return index++;
 }
 
+int Symboltable::insertarray(string name, int type, idValue value, int idType) {
+    if (isPresent(name)) {
+        return -1;
+    }
+    table.push_back(name);
+    tableMap[name].index = index;
+    tableMap[name].name = name;
+    tableMap[name].dataType = ARRDECL;
+    tableMap[name].value = value;
+    tableMap[name].idType = idType;
+    return index++;
+}
+
 void Symboltable::update(string name, idValue value) {
     if (isPresent(name)) {
         tableMap[name].value = value;
@@ -90,7 +103,24 @@ int SymboltableStack::insertarr(string name, int type, int size) {
         value.arr_val[i].dataType = type;
         value.arr_val[i].idType = VARDECL;
     }
-    return stacktable[index].insert(name, type, idValue(), VARDECL);
+    return stacktable[index].insert(name, ARRDECL, value, VARDECL);
+}
+
+int SymboltableStack::insertarrwithval(string name, int type,int size, idProperty value) {
+    idValue val;
+    if (value.value.string_val != "") {
+        val.arr_val = vector<idProperty>(size);
+        for (int i = 0; i < size; i++) {
+            val.arr_val[i].index = -1;
+            val.arr_val[i].dataType = type;
+            val.arr_val[i].idType = VARDECL;
+            if (i >= value.value.string_val.length()) {
+                val.arr_val[i].value.char_val = '\0';
+            }
+            else val.arr_val[i].value.char_val = value.value.string_val[i];
+        }
+    }
+    return stacktable[index].insertarray(name, type, val, VARDECL);
 }
 
 int SymboltableStack::insertfunc(string name, int type) {
@@ -132,12 +162,30 @@ void SymboltableStack::updatevar(string name, idValue value) {
 }
 
 void SymboltableStack::updatearr(string name, int index, idValue value) {
-    for (int i = index; i >= 0; i--) {
+    for (int i = this->index; i >= 0; i--) {
         if (stacktable[i].isPresent(name)) {
-            stacktable[i].getIDptr(name)->value.arr_val[index].value = value;
-            return;
+            if (stacktable[i].getIDptr(name)->value.arr_val[0].dataType == CHARDECL) {
+                if (value.char_val != '\0') {
+                    value.string_val = value.char_val;
+                    for (int j = 1; j < stacktable[i].getIDptr(name)->value.arr_val.size(); j++) {
+                        stacktable[i].getIDptr(name)->value.arr_val[j].value.char_val = '\0';
+                    }
+                }
+                else {
+                    for (int j = 0; j < stacktable[i].getIDptr(name)->value.arr_val.size(); j++) {
+                        if (j >= value.string_val.length()) {
+                            stacktable[i].getIDptr(name)->value.arr_val[j].value.char_val = '\0';
+                            continue;
+                        }
+                        stacktable[i].getIDptr(name)->value.arr_val[j].value.char_val = value.string_val[j];
+                    }
+                }
+            }
+            else stacktable[i].getIDptr(name)->value.arr_val[index].value = value;
+            break;
         }
     }
+    return;
 }
 
 idProperty* intConst(int val) {

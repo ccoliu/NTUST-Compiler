@@ -125,20 +125,25 @@ var_decl: VAR ID ':' var_type ';'
     }
     | VAR ID ':' var_type '[' expression ']' '=' expression ';' 
     {
-        if ($6->dataType != $4) yyerror("Error: Type mismatch");
-        if ($6->dataType != INTDECL) yyerror("Error: Expected integer value");
-        if ($6->value.int_val <= 0) yyerror("Error: Array size must be greater than 0");
-        if (symboltable.insertarr(*$2,$4,$6->value.int_val) == -1)
+        if ($6->dataType != INTDECL) yyerror("Error: Expected integer index");
+        if ($6->value.int_val < 0) yyerror("Error: Index out of bounds");
+        //char[10] x = "hello";
+        if ($4 == CHARDECL && $9->dataType == STRINGDECL) {
+            if ($9->value.string_val.size() > $6->value.int_val) {
+                yyerror("Error: String too long for array");
+                YYABORT;
+            }
+            if (symboltable.insertarrwithval(*$2,CHARDECL,$6->value.int_val,*$9) == -1)
+            {
+                yyerror("Error: Variable already declared");
+                YYABORT;
+            }
+        }
+        else if ($4 != $9->dataType) yyerror("Error: Type mismatch");
+        else if (symboltable.insertarr(*$2,$4,$6->value.int_val) == -1)
         {
             yyerror("Error: Variable already declared");
             YYABORT;
-        }
-        if ($9->dataType != ARRDECL) yyerror("Error: Expected array");
-        if ($9->value.arr_val.size() != $6->value.int_val) yyerror("Error: Array size mismatch");
-        for (int i = 0; i < $6->value.int_val; i++)
-        {
-            if ($9->value.arr_val[i].dataType != $4) yyerror("Error: Type mismatch");
-            symboltable.updatearr(*$2,i,$9->value.arr_val[i].value);
         }
     }
     ;
@@ -215,11 +220,28 @@ statement:
             yyerror("Error: Expected variable");
             YYABORT;
         }
-        if (idtmp->dataType != $3->dataType) {
+        if (idtmp->dataType == ARRDECL && idtmp->value.arr_val[0].dataType == CHARDECL) {
+            if ($3->dataType != STRINGDECL && $3->dataType != CHARDECL) {
+                yyerror("Error: Expected character value");
+                YYABORT;
+            }
+            if ($3->dataType == CHARDECL)
+            {
+                symboltable.updatearr(*$1,0,$3->value);
+            }
+            else if ($3->dataType == STRINGDECL && $3->value.string_val.size() <= idtmp->value.arr_val.size()) {
+                symboltable.updatearr(*$1,0,$3->value);
+            }
+            else {
+                yyerror("Error: Array size mismatch");
+                YYABORT;
+            }
+        }
+        else if (idtmp->dataType != $3->dataType) {
             yyerror("Error: Type mismatch");
             YYABORT;
         }
-        symboltable.updatevar(*$1,$3->value);
+        else symboltable.updatevar(*$1,$3->value);
     }
     | ID '[' expression ']' '=' expression ';'
     {
@@ -274,12 +296,21 @@ statement:
             case CHARDECL:
                 cout << $2->value.char_val;
                 break;
+            case ARRDECL:
+                if ($2->value.arr_val[0].dataType == CHARDECL) {
+                    cout << "\"";
+                    for (int i = 0; i < $2->value.arr_val.size(); i++) {
+                        cout << $2->value.arr_val[i].value.char_val;
+                    }
+                    cout << "\"";
+                }
+                break;
         }
     }
     | PRINTLN expression ';'
     {
         idProperty* idtmp = symboltable.lookup($2->name);
-        if (idtmp == nullptr)
+        if (idtmp == nullptr && !isConst($2))
         {
             yyerror("Error: Variable not found");
             YYABORT;
@@ -299,6 +330,15 @@ statement:
                 break;
             case CHARDECL:
                 cout << $2->value.char_val << endl;
+                break;
+            case ARRDECL:
+                if ($2->value.arr_val[0].dataType == CHARDECL) {
+                    cout << "\"";
+                    for (int i = 0; i < $2->value.arr_val.size(); i++) {
+                        cout << $2->value.arr_val[i].value.char_val;
+                    }
+                    cout << "\"" << endl;
+                }
                 break;
         }
     }
