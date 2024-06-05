@@ -108,7 +108,45 @@ int SymboltableStack::insertarr(string name, int type, int size) {
 
 int SymboltableStack::insertarrwithval(string name, int type,int size, idProperty value) {
     idValue val;
-    if (value.value.string_val != "") {
+    if (value.value.arr_val.size() != 0) {
+        val.arr_val = vector<idProperty>(size);
+        for (int i = 0; i < size; i++) {
+            val.arr_val[i].index = -1;
+            val.arr_val[i].dataType = type;
+            val.arr_val[i].idType = VARDECL;
+            if (i >= value.value.arr_val.size()){
+                if (type == INTDECL)
+                {
+                    val.arr_val[i].value.int_val = 0;
+                }
+                else if (type == REALDECL)
+                {
+                    val.arr_val[i].value.double_val = 0.0;
+                }
+            }
+            else if (type != value.value.arr_val[i].dataType) {
+                if (type == INTDECL && value.value.arr_val[i].dataType == REALDECL)
+                {
+                    val.arr_val[i].value.int_val = (int)value.value.arr_val[i].value.double_val;
+                }
+                else if (type == REALDECL && value.value.arr_val[i].dataType == INTDECL)
+                {
+                    val.arr_val[i].value.double_val = (double)value.value.arr_val[i].value.int_val;
+                }
+            }
+            else {
+                if (type == INTDECL)
+                {
+                    val.arr_val[i].value.int_val = value.value.arr_val[i].value.int_val;
+                }
+                else if (type == REALDECL)
+                {
+                    val.arr_val[i].value.double_val = value.value.arr_val[i].value.double_val;
+                }
+            } 
+        }
+    }
+    else if (value.value.string_val != "") {
         val.arr_val = vector<idProperty>(size);
         for (int i = 0; i < size; i++) {
             val.arr_val[i].index = -1;
@@ -230,6 +268,15 @@ idProperty* charConst(char val) {
     prop->dataType = CHARDECL;
     prop->idType = CONSTDECL;
     prop->value.char_val = val;
+    return prop;
+}
+
+idProperty* arrConst(vector<idProperty> val) {
+    idProperty* prop = new idProperty();
+    prop->index = 0;
+    prop->dataType = ARRDECL;
+    prop->idType = CONSTDECL;
+    prop->value.arr_val = val;
     return prop;
 }
 

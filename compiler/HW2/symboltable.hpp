@@ -91,6 +91,7 @@ idProperty* realConst(double val);
 idProperty* boolConst(bool val);
 idProperty* stringConst(string* val);
 idProperty* charConst(char val);
+idProperty* arrConst(vector<idProperty> val);
 bool isConst(idProperty* prop);
 string typeToString(int type);
 string getValue(idValue value, int type);

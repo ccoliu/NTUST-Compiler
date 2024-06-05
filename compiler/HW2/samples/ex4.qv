@@ -1,0 +1,6 @@
+fun main () {
+	var radius: real = 5;
+	var pi: real = 3.1415;
+	var area: real = radius * radius * pi;
+	print(area);
+}

@@ -4,12 +4,14 @@
     #include <stdio.h>
     #include <cmath>
     #include <string>
+    #include <algorithm>
     #include "symboltable.hpp"
     #include "lex.yy.cpp"
     using namespace std;
     void yyerror(string s);
     SymboltableStack symboltable;
     vector<vector<idProperty>> fstack;
+    vector<idProperty> compoundstack;
 %}
 
 %union {
@@ -105,7 +107,20 @@ var_decl: VAR ID ':' var_type ';'
     }
     | VAR ID ':' var_type '=' expression ';'
     {
-        if ($4 != $6->dataType) yyerror("Error: Type mismatch");
+        if ($4 != $6->dataType) {
+            if ($4 == REALDECL && $6->dataType == INTDECL)
+            {
+                $6 = realConst($6->value.int_val);
+            }
+            else if ($4 == INTDECL && $6->dataType == REALDECL)
+            {
+                $6 = intConst($6->value.double_val);
+            }
+            else {
+                yyerror("Error: Type mismatch");
+                YYABORT;
+            }
+        }
         $6->idType = VARDECL;
         if (symboltable.insert(*$2,*$6) == -1)
         {
@@ -128,7 +143,20 @@ var_decl: VAR ID ':' var_type ';'
         if ($6->dataType != INTDECL) yyerror("Error: Expected integer index");
         if ($6->value.int_val < 0) yyerror("Error: Index out of bounds");
         //char[10] x = "hello";
-        if ($4 == CHARDECL && $9->dataType == STRINGDECL) {
+        if ($9->dataType == ARRDECL)
+        {
+            if ($4 != $9->value.arr_val[0].dataType && ($4 != REALDECL && $4 != INTDECL) && ($9->value.arr_val[0].dataType != REALDECL && $9->value.arr_val[0].dataType != INTDECL)) yyerror("Error: Type mismatch");
+            if ($9->value.arr_val.size() > $6->value.int_val) {
+                yyerror("Error: Too many dimensions");
+                YYABORT;
+            }
+            if (symboltable.insertarrwithval(*$2,$4,$6->value.int_val,*$9) == -1)
+            {
+                yyerror("Error: Variable already declared");
+                YYABORT;
+            }
+        }
+        else if ($4 == CHARDECL && $9->dataType == STRINGDECL) {
             if ($9->value.string_val.size() > $6->value.int_val) {
                 yyerror("Error: String too long for array");
                 YYABORT;
@@ -275,26 +303,26 @@ statement:
     | PRINT expression ';'
     {
         idProperty* idtmp = symboltable.lookup($2->name);
-        if (idtmp == nullptr)
+        if (!isConst($2) && idtmp == nullptr)
         {
             yyerror("Error: Variable not found");
             YYABORT;
         }
         switch($2->dataType) {
             case INTDECL:
-                cout << $2->value.int_val;
+                cout << $2->value.int_val << "";
                 break;
             case REALDECL:
-                cout << $2->value.double_val;
+                cout << $2->value.double_val << "";
                 break;
             case STRINGDECL:
-                cout << $2->value.string_val;
+                cout << $2->value.string_val << "";
                 break;
             case BOOLDECL:
-                cout << $2->value.bool_val;
+                cout << $2->value.bool_val << "";
                 break;
             case CHARDECL:
-                cout << $2->value.char_val;
+                cout << $2->value.char_val << "";
                 break;
             case ARRDECL:
                 if ($2->value.arr_val[0].dataType == CHARDECL) {
@@ -303,6 +331,22 @@ statement:
                         cout << $2->value.arr_val[i].value.char_val;
                     }
                     cout << "\"";
+                }
+                else if ($2->value.arr_val[0].dataType == INTDECL) {
+                    cout << "{";
+                    for (int i = 0; i < $2->value.arr_val.size(); i++) {
+                        cout << $2->value.arr_val[i].value.int_val;
+                        if (i != $2->value.arr_val.size()-1) cout << ",";
+                    }
+                    cout << "}";
+                }
+                else if ($2->value.arr_val[0].dataType == REALDECL) {
+                    cout << "{";
+                    for (int i = 0; i < $2->value.arr_val.size(); i++) {
+                        cout << $2->value.arr_val[i].value.double_val;
+                        if (i != $2->value.arr_val.size()-1) cout << ",";
+                    }
+                    cout << "}";
                 }
                 break;
         }
@@ -338,6 +382,22 @@ statement:
                         cout << $2->value.arr_val[i].value.char_val;
                     }
                     cout << "\"" << endl;
+                }
+                else if ($2->value.arr_val[0].dataType == INTDECL) {
+                    cout << "{";
+                    for (int i = 0; i < $2->value.arr_val.size(); i++) {
+                        cout << $2->value.arr_val[i].value.int_val;
+                        if (i != $2->value.arr_val.size()-1) cout << ",";
+                    }
+                    cout << "}" << endl;
+                }
+                else if ($2->value.arr_val[0].dataType == REALDECL) {
+                    cout << "{";
+                    for (int i = 0; i < $2->value.arr_val.size(); i++) {
+                        cout << $2->value.arr_val[i].value.double_val;
+                        if (i != $2->value.arr_val.size()-1) cout << ",";
+                    }
+                    cout << "}" << endl;
                 }
                 break;
         }
@@ -394,10 +454,20 @@ expression: ID
     | expression '+' expression 
     {
         if ($1->dataType != $3->dataType) {
-            yyerror("Error: Type mismatch");
-            YYABORT;
+            if ($1->dataType == INTDECL && $3->dataType == REALDECL)
+            {
+                $$ = realConst($1->value.int_val + $3->value.double_val);
+            }
+            else if ($1->dataType == REALDECL && $3->dataType == INTDECL)
+            {
+                $$ = realConst($1->value.double_val + $3->value.int_val);
+            }
+            else {
+                yyerror("Error: Type mismatch");
+                YYABORT;
+            }
         }
-        if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
+        else if ($1->dataType == INTDECL && $3->dataType == INTDECL) {
             $$ = intConst($1->value.int_val + $3->value.int_val);
         }
         else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
@@ -405,6 +475,34 @@ expression: ID
         }
         else if ($1->dataType == STRINGDECL && $3->dataType == STRINGDECL) {
             $$ = stringConst(new string($1->value.string_val + $3->value.string_val));
+        }
+        else if ($1->dataType == ARRDECL && $3->dataType == ARRDECL) // inner product
+        {
+            if ($1->value.arr_val.size() != $3->value.arr_val.size()) {
+                yyerror("Error: Mismatched dimensions");
+                YYABORT;
+            }
+            for (int i = 0; i < $1->value.arr_val.size(); i++) {
+                if ($1->value.arr_val[i].dataType != $3->value.arr_val[i].dataType) {
+                    yyerror("Error: Type mismatch");
+                    YYABORT;
+                }
+                if ($1->value.arr_val[i].dataType == INTDECL)
+                {
+                    compoundstack.push_back(*intConst($1->value.arr_val[i].value.int_val * $3->value.arr_val[i].value.int_val));
+                }
+                else if ($1->value.arr_val[i].dataType == REALDECL)
+                {
+                    compoundstack.push_back(*realConst($1->value.arr_val[i].value.double_val * $3->value.arr_val[i].value.double_val));
+                }
+                else
+                {
+                    yyerror("Error: No addition for types" + to_string($1->value.arr_val[i].dataType) + " and " + to_string($3->value.arr_val[i].dataType));
+                    YYABORT;
+                }
+            }
+            $$ = arrConst(compoundstack);
+            compoundstack.clear();
         }
         else
         {
@@ -441,6 +539,31 @@ expression: ID
         }
         else if ($1->dataType == REALDECL && $3->dataType == REALDECL) {
             $$ = realConst($1->value.double_val * $3->value.double_val);
+        }
+        else if ($1->dataType == ARRDECL && $3->dataType == ARRDECL) // inner product
+        {
+            if ($1->value.arr_val.size() != $3->value.arr_val.size()) {
+                yyerror("Error: Mismatched dimensions");
+                YYABORT;
+            }
+            if ($1->value.arr_val[0].dataType == INTDECL && $3->value.arr_val[0].dataType == INTDECL) {
+                int sum = 0;
+                for (int i = 0; i < $1->value.arr_val.size(); i++) {
+                    sum += $1->value.arr_val[i].value.int_val * $3->value.arr_val[i].value.int_val;
+                }
+                $$ = intConst(sum);
+            }
+            else if ($1->value.arr_val[0].dataType == REALDECL && $3->value.arr_val[0].dataType == REALDECL) {
+                double sum = 0;
+                for (int i = 0; i < $1->value.arr_val.size(); i++) {
+                    sum += $1->value.arr_val[i].value.double_val * $3->value.arr_val[i].value.double_val;
+                }
+                $$ = realConst(sum);
+            }
+            else {
+                yyerror("Error: No inner product for types" + to_string($1->value.arr_val[0].dataType) + " and " + to_string($3->value.arr_val[0].dataType));
+                YYABORT;
+            }
         }
         else
         {
@@ -720,12 +843,35 @@ expression: ID
             YYABORT;
         }
     }
+    | compound
+    {
+        $$ = arrConst(compoundstack);
+        compoundstack.clear();
+    }
     | '(' expression ')'
     {
         $$ = $2;
     }
     ;
 
+compound: '{'
+    compound_ex
+    '}'
+    {
+        reverse(compoundstack.begin(),compoundstack.end());
+    }
+    ;
+
+compound_ex: expression ',' compound_ex
+    {
+        compoundstack.push_back(*$1);
+    }
+    | expression
+    {
+        compoundstack.push_back(*$1);
+    }
+    | //empty
+    ;
 
 conditional: IF '(' expression ')' '{' statements '}'
     {
