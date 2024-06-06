@@ -289,7 +289,7 @@ string typeToString(int type) {
         case INTDECL:
             return "int";
         case REALDECL:
-            return "real";
+            return "double";
         case BOOLDECL:
             return "bool";
         case STRINGDECL:

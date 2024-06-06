@@ -2,9 +2,11 @@
     #include <iostream>
     #include <vector>
     #include <stdio.h>
+    #include <fstream>
     #include <cmath>
     #include <string>
     #include <algorithm>
+    #include <stack>
     #include "symboltable.hpp"
     #include "lex.yy.cpp"
     using namespace std;
@@ -12,6 +14,9 @@
     SymboltableStack symboltable;
     vector<vector<idProperty>> fstack;
     vector<idProperty> compoundstack;
+    string outputfile;
+    ofstream out;
+    stack<string> loopstack;
 %}
 
 %union {
@@ -60,7 +65,7 @@ opt_decl: var_decl opt_decl
     ;
 
 //main function must be named 'main'
-main_func_decl: FUNC ID '(' ')' '{' statements '}'
+main_func_decl: FUNC ID '(' ')' '{'  
     {
         if (*$2 != "main") {
             yyerror("Error: Main function must be named 'main'");
@@ -71,7 +76,9 @@ main_func_decl: FUNC ID '(' ')' '{' statements '}'
             YYABORT;
         }
         symboltable.pushtable();
+        if (out.is_open()) out << "int main() {" << endl;
     }
+    statements '}' { if (out.is_open()) out << "}" << endl;}
     | FUNC ID '(' params ')' '{' statements '}'
     {
         if (*$2 != "main") {
@@ -104,8 +111,9 @@ var_decl: VAR ID ':' var_type ';'
             yyerror("Error: Variable already declared");
             YYABORT;
         }
+        if (out.is_open()) out << typeToString($4) << " " << *$2 << ";" << endl;
     }
-    | VAR ID ':' var_type '=' expression ';'
+    | VAR ID ':' var_type '=' expression 
     {
         if ($4 != $6->dataType) {
             if ($4 == REALDECL && $6->dataType == INTDECL)
@@ -127,7 +135,13 @@ var_decl: VAR ID ':' var_type ';'
             yyerror("Error: Variable already declared");
             YYABORT;
         }
+        if (out.is_open()) {
+            out << typeToString($4) << " " << *$2 << " = ";
+            out << loopstack.top();
+            loopstack.pop();
+        }
     }
+    ';' { if (out.is_open()) out << ";" << endl;}
     | VAR ID ':' var_type '[' expression ']' ';'
     {
         if ($6->dataType != INTDECL) yyerror("Error: Expected integer value");
@@ -136,6 +150,11 @@ var_decl: VAR ID ':' var_type ';'
         {
             yyerror("Error: Variable already declared");
             YYABORT;
+        }
+        if (out.is_open())
+        {
+            out << typeToString($4) << " " << *$2 << "[" << loopstack.top() << "];" << endl;
+            loopstack.pop();
         }
     }
     | VAR ID ':' var_type '[' expression ']' '=' expression ';' 
@@ -172,6 +191,14 @@ var_decl: VAR ID ':' var_type ';'
         {
             yyerror("Error: Variable already declared");
             YYABORT;
+        }
+        if (out.is_open())
+        {
+            string arr = loopstack.top();
+            loopstack.pop();
+            out << typeToString($4) << " " << *$2 << "[" << loopstack.top() << "] = ";
+            loopstack.pop();
+            out << "{" << arr << "};" << endl;
         }
     }
     ;
@@ -270,6 +297,12 @@ statement:
             YYABORT;
         }
         else symboltable.updatevar(*$1,$3->value);
+        if (out.is_open())
+        {
+            out << *$1 << " = ";
+            out << loopstack.top() << ";" << endl;
+            loopstack.pop();
+        }
     }
     | ID '[' expression ']' '=' expression ';'
     {
@@ -300,104 +333,234 @@ statement:
         }
         symboltable.updatearr(*$1,$3->value.int_val,$6->value);
     }
-    | PRINT expression ';'
+    | PRINT '(' expression ')' ';'
     {
-        idProperty* idtmp = symboltable.lookup($2->name);
-        if (!isConst($2) && idtmp == nullptr)
+        idProperty* idtmp = symboltable.lookup($3->name);
+        if (!isConst($3) && idtmp == nullptr)
         {
             yyerror("Error: Variable not found");
             YYABORT;
         }
-        switch($2->dataType) {
+        switch($3->dataType) {
             case INTDECL:
-                cout << $2->value.int_val << "";
+                cout << $3->value.int_val << "";
+                if (out.is_open()) 
+                {
+                    out << "printf(\"%d\", ";
+                    out << loopstack.top() << ");" << endl;
+                    loopstack.pop();
+                }
                 break;
             case REALDECL:
-                cout << $2->value.double_val << "";
+                cout << $3->value.double_val << "";
+                if (out.is_open()) 
+                {
+                    out << "printf(\"%f\", ";
+                    out << loopstack.top() << ");" << endl;
+                    loopstack.pop();
+                }
                 break;
             case STRINGDECL:
-                cout << $2->value.string_val << "";
+                cout << $3->value.string_val << "";
+                if (out.is_open()) 
+                {
+                    if (loopstack.top() == "\n")
+                    {
+                        //print only one \n
+                        out << "printf(\"\\n\");" << endl;
+                        loopstack.pop();
+                    }
+                    else
+                    {
+                        out << "printf(\"%s\", ";
+                        out << loopstack.top() << ");" << endl;
+                        loopstack.pop();
+                    }
+                }
                 break;
             case BOOLDECL:
-                cout << $2->value.bool_val << "";
+                cout << $3->value.bool_val << "";
+                if (out.is_open()) 
+                {
+                    out << "printf(\"%d\", ";
+                    out << loopstack.top() << ");" << endl;
+                    loopstack.pop();
+                }
                 break;
             case CHARDECL:
-                cout << $2->value.char_val << "";
+                cout << $3->value.char_val << "";
+                if (out.is_open()) 
+                {
+                    if (loopstack.top() == "\n")
+                    {
+                        out << "printf(\"\\n\")" << endl;
+                        loopstack.pop();
+                    }
+                    else
+                    {
+                        out << "printf(\"%c\", ";
+                        out << loopstack.top() << ");" << endl;
+                        loopstack.pop();
+                    }
+                }
                 break;
             case ARRDECL:
-                if ($2->value.arr_val[0].dataType == CHARDECL) {
+                cout << "1" << endl;
+                if ($3->value.arr_val[0].dataType == CHARDECL) {
                     cout << "\"";
-                    for (int i = 0; i < $2->value.arr_val.size(); i++) {
-                        cout << $2->value.arr_val[i].value.char_val;
+                    for (int i = 0; i < $3->value.arr_val.size(); i++) {
+                        cout << $3->value.arr_val[i].value.char_val;
                     }
                     cout << "\"";
+                    if (out.is_open()) 
+                    {
+                        out << "printf(\"%s\", ";
+                        out << loopstack.top() << ");" << endl;
+                        loopstack.pop();
+                    }
                 }
-                else if ($2->value.arr_val[0].dataType == INTDECL) {
+                else if ($3->value.arr_val[0].dataType == INTDECL) {
                     cout << "{";
-                    for (int i = 0; i < $2->value.arr_val.size(); i++) {
-                        cout << $2->value.arr_val[i].value.int_val;
-                        if (i != $2->value.arr_val.size()-1) cout << ",";
+                    for (int i = 0; i < $3->value.arr_val.size(); i++) {
+                        cout << $3->value.arr_val[i].value.int_val;
+                        if (i != $3->value.arr_val.size()-1) cout << ",";
                     }
                     cout << "}";
+                    if (out.is_open()) 
+                    {
+                        out << "printf(\"%d\", ";
+                        out << loopstack.top() << ");" << endl;
+                        loopstack.pop();
+                    }
                 }
-                else if ($2->value.arr_val[0].dataType == REALDECL) {
+                else if ($3->value.arr_val[0].dataType == REALDECL) {
                     cout << "{";
-                    for (int i = 0; i < $2->value.arr_val.size(); i++) {
-                        cout << $2->value.arr_val[i].value.double_val;
-                        if (i != $2->value.arr_val.size()-1) cout << ",";
+                    for (int i = 0; i < $3->value.arr_val.size(); i++) {
+                        cout << $3->value.arr_val[i].value.double_val;
+                        if (i != $3->value.arr_val.size()-1) cout << ",";
                     }
                     cout << "}";
+                    if (out.is_open()) 
+                    {
+                        out << "printf(\"%f\", ";
+                        out << loopstack.top() << ");" << endl;
+                        loopstack.pop();
+                    }
                 }
                 break;
         }
     }
-    | PRINTLN expression ';'
+    | PRINTLN '(' expression ')' ';'
     {
-        idProperty* idtmp = symboltable.lookup($2->name);
-        if (idtmp == nullptr && !isConst($2))
+        idProperty* idtmp = symboltable.lookup($3->name);
+        if (idtmp == nullptr && !isConst($3))
         {
             yyerror("Error: Variable not found");
             YYABORT;
         }
-        switch($2->dataType) {
+        switch($3->dataType) {
             case INTDECL:
-                cout << $2->value.int_val << endl;
+                cout << $3->value.int_val << endl;
+                if (out.is_open()) 
+                {
+                    out << "printf(\"%d\\n\", ";
+                    out << loopstack.top() << ");" << endl;
+                    loopstack.pop();
+                }
                 break;
             case REALDECL:
-                cout << $2->value.double_val << endl;
+                cout << $3->value.double_val << endl;
+                if (out.is_open()) 
+                {
+                    out << "printf(\"%f\\n\", ";
+                    out << loopstack.top() << ");" << endl;
+                    loopstack.pop();
+                }
                 break;
             case STRINGDECL:
-                cout << $2->value.string_val << endl;
+                cout << $3->value.string_val << endl;
+                if (out.is_open()) 
+                {
+                    if (loopstack.top() == "\n")
+                    {
+                        out << "printf(\"\\n\\\n\");" << endl;
+                        loopstack.pop();
+                    }
+                    else
+                    {
+                        out << "printf(\"%s\\n\", ";
+                        out << loopstack.top() << ");" << endl;
+                        loopstack.pop();
+                    }
+                }
                 break;
             case BOOLDECL:
-                cout << $2->value.bool_val << endl;
+                cout << $3->value.bool_val << endl;
+                if (out.is_open()) 
+                {
+                    out << "printf(\"%d\\n\", ";
+                    out << loopstack.top() << ");" << endl;
+                    loopstack.pop();
+                }
                 break;
             case CHARDECL:
-                cout << $2->value.char_val << endl;
+                cout << $3->value.char_val << endl;
+                if (out.is_open()) 
+                {
+                    if (loopstack.top() == "\n")
+                    {
+                        out << "printf(\"\\n\\\n\");" << endl;
+                        loopstack.pop();
+                    }
+                    else
+                    {
+                        out << "printf(\"%c\\n\", ";
+                        out << loopstack.top() << ");" << endl;
+                        loopstack.pop();
+                    }
+                }
                 break;
             case ARRDECL:
-                if ($2->value.arr_val[0].dataType == CHARDECL) {
+                if ($3->value.arr_val[0].dataType == CHARDECL) {
                     cout << "\"";
-                    for (int i = 0; i < $2->value.arr_val.size(); i++) {
-                        cout << $2->value.arr_val[i].value.char_val;
+                    for (int i = 0; i < $3->value.arr_val.size(); i++) {
+                        cout << $3->value.arr_val[i].value.char_val;
                     }
                     cout << "\"" << endl;
+                    if (out.is_open()) 
+                    {
+                        out << "printf(\"%s\\n\", ";
+                        out << loopstack.top() << ");" << endl;
+                        loopstack.pop();
+                    }
                 }
-                else if ($2->value.arr_val[0].dataType == INTDECL) {
+                else if ($3->value.arr_val[0].dataType == INTDECL) {
                     cout << "{";
-                    for (int i = 0; i < $2->value.arr_val.size(); i++) {
-                        cout << $2->value.arr_val[i].value.int_val;
-                        if (i != $2->value.arr_val.size()-1) cout << ",";
+                    for (int i = 0; i < $3->value.arr_val.size(); i++) {
+                        cout << $3->value.arr_val[i].value.int_val;
+                        if (i != $3->value.arr_val.size()-1) cout << ",";
                     }
                     cout << "}" << endl;
+                    if (out.is_open()) 
+                    {
+                        out << "printf(\"%d\\n\", ";
+                        out << loopstack.top() << ");" << endl;
+                        loopstack.pop();
+                    }
                 }
-                else if ($2->value.arr_val[0].dataType == REALDECL) {
+                else if ($3->value.arr_val[0].dataType == REALDECL) {
                     cout << "{";
-                    for (int i = 0; i < $2->value.arr_val.size(); i++) {
-                        cout << $2->value.arr_val[i].value.double_val;
-                        if (i != $2->value.arr_val.size()-1) cout << ",";
+                    for (int i = 0; i < $3->value.arr_val.size(); i++) {
+                        cout << $3->value.arr_val[i].value.double_val;
+                        if (i != $3->value.arr_val.size()-1) cout << ",";
                     }
                     cout << "}" << endl;
+                    if (out.is_open()) 
+                    {
+                        out << "printf(\"%f\\n\", ";
+                        out << loopstack.top() << ");" << endl;
+                        loopstack.pop();
+                    }
                 }
                 break;
         }
@@ -409,11 +572,11 @@ statement:
     ;
 
 //ex: 123, 3.14, true, "hello"
-const_value: INT_VAL { $$ = intConst($1); }
-    | REAL_VAL { $$ = realConst($1); }
-    | BOOL_VAL { $$ = boolConst($1); }
-    | STRING_VAL { $$ = stringConst($1); }
-    | CHAR_VAL { $$ = charConst($1); }
+const_value: INT_VAL { $$ = intConst($1); if (out.is_open()) loopstack.push(to_string($1));}
+    | REAL_VAL { $$ = realConst($1); if (out.is_open()) loopstack.push(to_string($1));}
+    | BOOL_VAL { $$ = boolConst($1); if (out.is_open()) loopstack.push(to_string($1));}
+    | STRING_VAL { $$ = stringConst($1); if (out.is_open()) loopstack.push(*$1);}
+    | CHAR_VAL { $$ = charConst($1); if (out.is_open()) loopstack.push(string(&$1,1));}
     ;
 
 expression: ID
@@ -424,6 +587,9 @@ expression: ID
             YYABORT;
         }
         $$ = idtmp;
+        if (out.is_open()) {
+            loopstack.push(*$1);
+        }
     }
     | const_value
     | ID '[' expression ']'
@@ -450,6 +616,10 @@ expression: ID
             YYABORT;
         }
         $$ = new idProperty(idtmp->value.arr_val[$3->value.int_val]);
+        if (out.is_open()) {
+            loopstack.push(*$1 + "[" + loopstack.top() + "]");
+            loopstack.pop();
+        }
     }
     | expression '+' expression 
     {
@@ -509,6 +679,17 @@ expression: ID
             yyerror("Error: No concatenation for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
         }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "+" + top);
+                }
+            }
+        }
     }
     | expression '-' expression
     {
@@ -526,6 +707,17 @@ expression: ID
         {
             yyerror("Error: No subtraction for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
+        }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "-" + top);
+                }
+            }
         }
     }
     | expression '*' expression
@@ -570,6 +762,17 @@ expression: ID
             yyerror("Error: No multiplication for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
         }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "*" + top);
+                }
+            }
+        }
     }
     | expression '/' expression
     {
@@ -587,6 +790,17 @@ expression: ID
         {
             yyerror("Error: No division for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
+        }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "/" + top);
+                }
+            }
         }
     }
     | expression '%' expression
@@ -606,6 +820,17 @@ expression: ID
             yyerror("Error: No modulo for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
         }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "%" + top);
+                }
+            }
+        }
     }
     | expression '^' expression
     {
@@ -623,6 +848,17 @@ expression: ID
         {
             yyerror("Error: No exponentiation for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
+        }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "^" + top);
+                }
+            }
         }
     }
     | expression '<' expression
@@ -648,6 +884,17 @@ expression: ID
             yyerror("Error: No comparison for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
         }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "<" + top);
+                }
+            }
+        }
     }
     | expression '>' expression
     {
@@ -672,6 +919,17 @@ expression: ID
             yyerror("Error: No comparison for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
         }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + ">" + top);
+                }
+            }
+        }
     }
     | expression LESSEQUAL expression
     {
@@ -695,7 +953,18 @@ expression: ID
         {
             yyerror("Error: No comparison for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
-        }  
+        } 
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "<=" + top);
+                }
+            }
+        }
     }
     | expression GREATEREQUAL expression
     {
@@ -719,7 +988,18 @@ expression: ID
         {
             yyerror("Error: No comparison for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
-        }  
+        }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + ">=" + top);
+                }
+            }
+        }
     }
     | expression EQUALITY expression
     {
@@ -746,6 +1026,17 @@ expression: ID
         {
             yyerror("Error: No comparison for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
+        }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "==" + top);
+                }
+            }
         }
     }
     | expression INEQUALITY expression
@@ -774,6 +1065,17 @@ expression: ID
             yyerror("Error: No comparison for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
         }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "!=" + top);
+                }
+            }
+        }
     }
     | expression AND expression
     {
@@ -782,6 +1084,17 @@ expression: ID
             YYABORT;
         }
         $$ = boolConst($1->value.bool_val && $3->value.bool_val);
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "&&" + top);
+                }
+            }
+        }
     }
     | expression OR expression
     {
@@ -790,6 +1103,17 @@ expression: ID
             YYABORT;
         }
         $$ = boolConst($1->value.bool_val || $3->value.bool_val);
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "||" + top);
+                }
+            }
+        }
     }
     | '!' expression
     {
@@ -798,6 +1122,13 @@ expression: ID
             YYABORT;
         }
         $$ = boolConst(!$2->value.bool_val);
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                loopstack.push("!" + top);
+            }
+        }
     }
     | expression '&' expression
     {
@@ -812,6 +1143,17 @@ expression: ID
         {
             yyerror("Error: No bitwise AND for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
+        }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "&" + top);
+                }
+            }
         }
     }
     | expression '|' expression
@@ -828,6 +1170,17 @@ expression: ID
             yyerror("Error: No bitwise OR for types" + to_string($1->dataType) + " and " + to_string($3->dataType));
             YYABORT;
         }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "|" + top);
+                }
+            }
+        }
     }
     | '-' expression %prec UMINUS
     {
@@ -842,6 +1195,13 @@ expression: ID
             yyerror("Error: No negation for type" + to_string($2->dataType));
             YYABORT;
         }
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                loopstack.push("-" + top);
+            }
+        }
     }
     | compound
     {
@@ -851,6 +1211,13 @@ expression: ID
     | '(' expression ')'
     {
         $$ = $2;
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                loopstack.push("(" + top + ")");
+            }
+        }
     }
     ;
 
@@ -865,6 +1232,17 @@ compound: '{'
 compound_ex: expression ',' compound_ex
     {
         compoundstack.push_back(*$1);
+        if (out.is_open()) {
+            if (!loopstack.empty()) {
+                string top = loopstack.top();
+                loopstack.pop();
+                if (!loopstack.empty()) {
+                    string nextTop = loopstack.top();
+                    loopstack.pop();
+                    loopstack.push(nextTop + "," + top);
+                }
+            }
+        }
     }
     | expression
     {
@@ -898,7 +1276,22 @@ void yyerror(string s) {
 }
 
 int main(int argc, char** argv) {
-    if (argc == 2)
+    if (argc == 3) { //gen c file
+        outputfile = argv[2];
+        out.open(outputfile + ".c");
+        out << "#include <stdio.h>" << endl << endl;
+        FILE* file = fopen(argv[1], "r");
+        if (!file)
+        {
+            cerr << "ERROR: File not found\n";
+            return 1;
+        }
+        yyin = file;
+        yyparse();
+        fclose(file);
+        return 0;
+    }
+    else if (argc == 2)
     {
         FILE* file = fopen(argv[1], "r");
         if (!file)
