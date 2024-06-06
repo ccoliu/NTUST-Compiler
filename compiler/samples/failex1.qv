@@ -1,0 +1,4 @@
+fun main () {
+	var i: int;
+	var i: real[3] = {2, -2}; // yyerror("ERROR: duplicate declaration")
+}

@@ -1,0 +1,8 @@
+fun main () {
+	var vi1: real[5] = {5, 3, 4, 1, 2}; // vi1[0]~vi1[4]
+	var vi2: real[5] = {2, -2, 4}; // Missing dimensions assumed 0s
+    print( vi1 * vi2 ); // Inner product, output: "20"
+	print( "\n" );
+    print( vi1 + vi2 ); // Dimension-wise addition, output: "{10, -6, 16, 0, 0}"
+	print( "\n" );
+}

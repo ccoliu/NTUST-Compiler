@@ -1,0 +1,4 @@
+fun main () {
+	print(123.456);
+	println(123.456);
+}

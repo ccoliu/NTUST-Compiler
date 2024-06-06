@@ -1,0 +1,9 @@
+fun main () {
+	var i: real = 1.5;
+	var j: real = 3.14;
+	var k: real = 2.8;
+	print(i + j * k);
+	print("\n");
+	print(i * (j + k));
+	print("\n");
+}
