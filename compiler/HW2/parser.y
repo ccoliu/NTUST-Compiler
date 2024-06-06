@@ -405,7 +405,6 @@ statement:
                 }
                 break;
             case ARRDECL:
-                cout << "1" << endl;
                 if ($3->value.arr_val[0].dataType == CHARDECL) {
                     cout << "\"";
                     for (int i = 0; i < $3->value.arr_val.size(); i++) {
@@ -575,7 +574,16 @@ statement:
 const_value: INT_VAL { $$ = intConst($1); if (out.is_open()) loopstack.push(to_string($1));}
     | REAL_VAL { $$ = realConst($1); if (out.is_open()) loopstack.push(to_string($1));}
     | BOOL_VAL { $$ = boolConst($1); if (out.is_open()) loopstack.push(to_string($1));}
-    | STRING_VAL { $$ = stringConst($1); if (out.is_open()) loopstack.push(*$1);}
+    | STRING_VAL { 
+        $$ = stringConst($1); 
+        if (out.is_open()) {
+            if (*$1 == "\n") 
+            {
+                loopstack.push(*$1);
+            }
+            else loopstack.push("\"" + *$1 + "\"");
+        }
+    }
     | CHAR_VAL { $$ = charConst($1); if (out.is_open()) loopstack.push(string(&$1,1));}
     ;
 

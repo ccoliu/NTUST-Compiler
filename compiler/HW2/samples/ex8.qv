@@ -1,0 +1,6 @@
+fun main () {
+	var i: char[8] = "Hello";
+	print(i);
+	i = "Bye!";
+	print(i);
+}
