@@ -4,7 +4,7 @@
 Note: This program is recommended to run in ubuntu environment. 
 1. Open terminal in linux.
 2. Type `make` to flex and compile the file (The executable file is parser).
-5. There are 3 methods to use the parser:
+3. There are 3 methods to use the parser:
 	### ./parser
 
 	This method allows user to input source code the parse it.
@@ -24,3 +24,5 @@ Note: This program is recommended to run in ubuntu environment.
  		EX: ./parser sample1.qv sample
 
    	The output file will add “.c” at <OUTPUT_C_FILE_NAME>
+4.	The result should be printed on the terminal.
+5.	You can use “make clean” to remove the lex.yy.c file and scanner file.
