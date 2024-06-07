@@ -5,11 +5,12 @@ Note: This program is recommended to run in ubuntu environment.
 1. Open terminal in linux.
 2. Type “make” to flex and compile the file (The executable file is parser).
 3. There are 3 methods to use the parser:
-	1. ./parser
+	### ./parser
 
 		This method allows user to input source code the parse it.
 	
- 		EX: ./parser
+ 		EX:
+   			$./parser
 	
  	2. ./parser <INPUT_FILE_NAME>
   
