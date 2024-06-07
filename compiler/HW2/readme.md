@@ -7,18 +7,18 @@ Note: This program is recommended to run in ubuntu environment.
 3. There are 3 methods to use the parser:
 	1. ./parser
 
-	This method allows user to input source code the parse it.
+		This method allows user to input source code the parse it.
 	
- 	EX: ./parser
+ 		EX: ./parser
 	
  	2. ./parser <INPUT_FILE_NAME>
   
- 	This method allows user to enter <INPUT_FILE_NAME> and parse the <INPUT_FILE_NAME>.
+ 		This method allows user to enter <INPUT_FILE_NAME> and parse the <INPUT_FILE_NAME>.
 	
- 	EX: ./parser sample1.qv
+ 		EX: ./parser sample1.qv
 	
  	3. ./parser <INPUT_FILE_NAME> <OUTPUT_C_FILE_NAME>
   
- 	This method allows user to enter <INPUT_FILE_NAME> and <OUTPUT_C_FILE_NAME> , which parse the <INPUT_FILE_NAME> and output the c code file with name that enters in <OUTPUT_C_FILE_NAME>.
+ 		This method allows user to enter <INPUT_FILE_NAME> and <OUTPUT_C_FILE_NAME> , which parse the <INPUT_FILE_NAME> and output the c code file with name that enters in <OUTPUT_C_FILE_NAME>.
 	
- 	EX: ./parser sample1.qv sample (The output file will add “.c” at <OUTPUT_C_FILE_NAME>)
+ 		EX: ./parser sample1.qv sample (The output file will add “.c” at <OUTPUT_C_FILE_NAME>)
