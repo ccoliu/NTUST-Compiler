@@ -1,5 +1,5 @@
 # Introduction:
-	In this homework, we created parser file to parse the source code and generate the code into GCC compatible code.
+In this homework, we created parser file to parse the source code and generate the code into GCC compatible code.
 # How to use the file:
 Note: This program is recommended to run in ubuntu environment. 
 1. Open terminal in linux.
