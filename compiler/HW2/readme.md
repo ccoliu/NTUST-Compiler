@@ -25,4 +25,4 @@ Note: This program is recommended to run in ubuntu environment.
 
    	The output file will add “.c” at <OUTPUT_C_FILE_NAME>
 4.	The result should be printed on the terminal.
-5.	You can use “make clean” to remove the lex.yy.c file and scanner file.
+5.	You can use `make clean` to remove the lex.yy.c file and scanner file.
