@@ -7,10 +7,9 @@ Note: This program is recommended to run in ubuntu environment.
 3. There are 3 methods to use the parser:
 	### ./parser
 
-		This method allows user to input source code the parse it.
+	This method allows user to input source code the parse it.
 	
- 		EX:
-   			$./parser
+   		EX: ./parser
 	
  	2. ./parser <INPUT_FILE_NAME>
   
