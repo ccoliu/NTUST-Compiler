@@ -1,10 +1,10 @@
-Introduction:
+# Introduction:
 	In this homework, we created parser file to parse the source code and generate the code into GCC compatible code.
-How to use the file:
+# How to use the file:
 Note: This program is recommended to run in ubuntu environment. 
 1. Open terminal in linux.
-2. Type “make” to flex and compile the file (The executable file is parser).
-3. There are 3 methods to use the parser:
+2. Type `make` to flex and compile the file (The executable file is parser).
+5. There are 3 methods to use the parser:
 	### ./parser
 
 	This method allows user to input source code the parse it.
